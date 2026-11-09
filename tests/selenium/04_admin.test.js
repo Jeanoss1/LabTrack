@@ -24,6 +24,24 @@ async function filaDe(driver, tabla, texto) {
   throw new Error("No se encontró la fila " + texto);
 }
 
+// La tabla se vuelve a pintar tras cada acción; si la fila ubicada desaparece (stale element), se reintenta.
+async function conReintento(accion, intentos = 5) {
+  for (let i = 1; ; i++) {
+    try {
+      return await accion();
+    } catch (e) {
+      if (e.name !== "StaleElementReferenceError" || i >= intentos) throw e;
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+}
+
+const clicEnFila = (driver, tabla, texto, boton) =>
+  conReintento(async () => (await filaDe(driver, tabla, texto)).findElement(By.css(boton)).click());
+
+const textoDeFila = (driver, tabla, texto) =>
+  conReintento(async () => (await filaDe(driver, tabla, texto)).getText());
+
 describe("HU-04 y HU-05 Panel del encargado: aprobación, rechazo y devolución", function () {
   let driver;
 
@@ -54,8 +72,7 @@ describe("HU-04 y HU-05 Panel del encargado: aprobación, rechazo y devolución"
   });
 
   it("TC-14 Rechazar exige un motivo obligatorio y registra el estado 'Rechazada'", async function () {
-    const fila = await filaDe(driver, "cuerpo-pendientes", "RED-001");
-    await fila.findElement(By.css(".btn-rechazar")).click();
+    await clicEnFila(driver, "cuerpo-pendientes", "RED-001", ".btn-rechazar");
     await esperar(driver, "#modal-rechazo.visible");
     await driver.findElement(By.css("#btn-confirmar-rechazo")).click();
     await esperarTexto(driver, "#rechazo-mensaje", "Debes ingresar el motivo");
@@ -68,11 +85,9 @@ describe("HU-04 y HU-05 Panel del encargado: aprobación, rechazo y devolución"
   });
 
   it("TC-15 Aprobar cambia la reserva a 'Aprobada' y el equipo a 'Prestado'", async function () {
-    const fila = await filaDe(driver, "cuerpo-pendientes", "CMP-002");
-    await fila.findElement(By.css(".btn-aprobar")).click();
+    await clicEnFila(driver, "cuerpo-pendientes", "CMP-002", ".btn-aprobar");
     await esperarTexto(driver, "#admin-mensaje", "Prestado");
-    const activa = await filaDe(driver, "cuerpo-activas", "CMP-002");
-    assert.match(await activa.getText(), /Aprobada/);
+    assert.match(await textoDeFila(driver, "cuerpo-activas", "CMP-002"), /Aprobada/);
     assert.equal(await estadoEquipo("CMP-002"), "Prestado");
     await capturar(driver, "TC-15_aprobacion");
   });
@@ -99,12 +114,10 @@ describe("HU-04 y HU-05 Panel del encargado: aprobación, rechazo y devolución"
 
   it("TC-17 Devolución tardía: el estudiante pasa automáticamente a 'Penalizado'", async function () {
     await driver.navigate().refresh();
-    const pendiente = await filaDe(driver, "cuerpo-pendientes", "ELE-002");
-    await pendiente.findElement(By.css(".btn-aprobar")).click();
+    await clicEnFila(driver, "cuerpo-pendientes", "ELE-002", ".btn-aprobar");
     await esperarTexto(driver, "#admin-mensaje", "ELE-002");
     await escribir(driver, "#buscar-activa", maria.codigo);
-    const activa = await filaDe(driver, "cuerpo-activas", "ELE-002");
-    await activa.findElement(By.css(".btn-devolucion")).click();
+    await clicEnFila(driver, "cuerpo-activas", "ELE-002", ".btn-devolucion");
     const msg = await esperarTexto(driver, "#admin-mensaje", "Penalizado");
     assert.match(msg, /fuera de plazo/);
     await esperarTexto(driver, "#cuerpo-activas", "No hay reservas activas");
@@ -117,8 +130,7 @@ describe("HU-04 y HU-05 Panel del encargado: aprobación, rechazo y devolución"
     const buscar = await esperar(driver, "#buscar-activa");
     await buscar.clear();
     await escribir(driver, "#buscar-activa", "CMP-002");
-    const activa = await filaDe(driver, "cuerpo-activas", "CMP-002");
-    await activa.findElement(By.css(".btn-devolucion")).click();
+    await clicEnFila(driver, "cuerpo-activas", "CMP-002", ".btn-devolucion");
     const msg = await esperarTexto(driver, "#admin-mensaje", "a tiempo");
     assert.match(msg, /Disponible/);
     await esperarTexto(driver, "#cuerpo-activas", "No hay reservas activas");

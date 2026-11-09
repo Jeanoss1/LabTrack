@@ -42,6 +42,18 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---------- Códigos de estudiante (ingreso con código, HU-01) ----------
+    // Índice código -> correo; se lee antes de autenticarse y solo lo crea el propio estudiante.
+    match /codigos/{codigo} {
+      allow read: if true;
+      allow create: if autenticado()
+        && request.resource.data.keys().hasOnly(['correo', 'uid'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.correo == request.auth.token.email;
+      allow update: if false;
+      allow delete: if esAdmin();
+    }
+
     // ---------- Equipos (catálogo público, HU-02) ----------
     match /equipos/{id} {
       allow read: if true;

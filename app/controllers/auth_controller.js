@@ -4,9 +4,9 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup,
   updateProfile, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
-import { obtenerPerfil, crearPerfil } from "../models/Usuario.js";
+import { obtenerPerfil, crearPerfil, correoPorCodigo, codigoDisponible } from "../models/Usuario.js";
 import { obtenerIntento, guardarIntento, limpiarIntentos } from "../models/IntentoLogin.js";
-import { estaBloqueado, registrarFallo, MINUTOS_BLOQUEO } from "../servicios/reglas.js";
+import { estaBloqueado, registrarFallo, esCodigoEstudiante, normalizarCodigo, MINUTOS_BLOQUEO } from "../servicios/reglas.js";
 import { mostrarMensaje, manejar } from "../static/js/ui.js";
 import { RUTAS, rutaSegunRol } from "../static/js/sesion.js";
 
@@ -15,10 +15,17 @@ const MSG_BLOQUEO = `Alerta de seguridad: la cuenta está bloqueada temporalment
 const ERRORES_REGISTRO = {
   "auth/email-already-in-use": "El correo ya está registrado.",
   "auth/weak-password": "La contraseña debe tener al menos 6 caracteres.",
-  "auth/invalid-email": "El correo no tiene un formato válido."
+  "auth/invalid-email": "El correo no tiene un formato válido.",
+  "codigo-duplicado": "El código de estudiante ya está registrado."
 };
 
 const valor = (id) => document.getElementById(id).value.trim();
+
+/** HU-01: el identificador puede ser el correo o el código de estudiante. */
+async function resolverCorreo(identificador) {
+  if (!esCodigoEstudiante(identificador)) return identificador;
+  return correoPorCodigo(normalizarCodigo(identificador));
+}
 
 async function continuarConUsuario(user) {
   const perfil = await obtenerPerfil(user.uid);
@@ -28,24 +35,27 @@ async function continuarConUsuario(user) {
 // ---- Inicio de sesión con correo y contraseña ----
 async function iniciarSesion(evento) {
   evento.preventDefault();
-  const correo = valor("login-correo");
+  const identificador = valor("login-correo");
   const clave = document.getElementById("login-clave").value;
   const boton = document.getElementById("btn-login");
   boton.disabled = true;
   try {
-    const intento = await obtenerIntento(correo);
+    const correo = await resolverCorreo(identificador);
+    const cuenta = correo ?? identificador; // los intentos se cuentan por cuenta, se ingrese con correo o con código
+    const intento = await obtenerIntento(cuenta);
     if (estaBloqueado(intento, Date.now())) {
       mostrarMensaje("login-mensaje", MSG_BLOQUEO, "alerta");
       return;
     }
     try {
+      if (!correo) throw Object.assign(new Error("Código no registrado"), { code: "auth/invalid-credential" });
       const cred = await signInWithEmailAndPassword(auth, correo, clave);
-      await limpiarIntentos(correo);
+      await limpiarIntentos(cuenta);
       await continuarConUsuario(cred.user);
     } catch (err) {
       console.info("Ingreso rechazado:", err.code);
       const nuevo = registrarFallo(intento, Date.now());
-      await guardarIntento(correo, nuevo);
+      await guardarIntento(cuenta, nuevo);
       mostrarMensaje("login-mensaje", nuevo.bloqueado ? MSG_BLOQUEO : MSG_CREDENCIALES, nuevo.bloqueado ? "alerta" : "error");
     }
   } finally {
@@ -68,9 +78,10 @@ async function registrar(evento) {
   evento.preventDefault();
   const nombre = valor("reg-nombre");
   const codigo = valor("reg-codigo").toUpperCase();
-  const correo = valor("reg-correo");
+  const correo = valor("reg-correo").toLowerCase();
   const clave = document.getElementById("reg-clave").value;
   try {
+    if (!(await codigoDisponible(codigo))) throw Object.assign(new Error("Código duplicado"), { code: "codigo-duplicado" });
     const cred = await createUserWithEmailAndPassword(auth, correo, clave);
     await updateProfile(cred.user, { displayName: nombre });
     const perfil = await crearPerfil(cred.user.uid, { nombre, codigo, correo });
@@ -101,11 +112,15 @@ function iniciarCompletarPerfil(formPerfil) {
       codigo: valor("perfil-codigo").toUpperCase(),
       correo: usuarioGoogle.email
     };
-    manejar(
-      crearPerfil(usuarioGoogle.uid, datos).then((perfil) => { window.location.href = rutaSegunRol(perfil); }),
-      "perfil-mensaje",
-      "No se pudo guardar el perfil."
-    );
+    const guardar = async () => {
+      if (!(await codigoDisponible(datos.codigo))) {
+        mostrarMensaje("perfil-mensaje", ERRORES_REGISTRO["codigo-duplicado"], "error");
+        return;
+      }
+      const perfil = await crearPerfil(usuarioGoogle.uid, datos);
+      window.location.href = rutaSegunRol(perfil);
+    };
+    manejar(guardar(), "perfil-mensaje", "No se pudo guardar el perfil.");
   });
 }
 

@@ -61,6 +61,12 @@ describe("Reglas de seguridad de Firestore", () => {
     await denegado(getDoc(doc(db, "usuarios", "uid-de-otro-usuario")));
   });
 
+  test("SEC-08 un estudiante no puede asociar un código de estudiante al correo de otra persona", async () => {
+    await signInWithEmailAndPassword(auth, ana.correo, ana.clave);
+    await denegado(setDoc(doc(db, "codigos", "N09999999"), { correo: "encargado@labtrack.pe", uid: uidAna }));
+    await denegado(setDoc(doc(db, "codigos", ana.codigo), { correo: ana.correo, uid: "otro-uid" }));
+  });
+
   test("SEC-07 sin sesión no se puede reiniciar el contador de una cuenta bloqueada", async () => {
     await signOut(auth);
     const ref = doc(db, "intentosLogin", "victima_labtrack_pe");

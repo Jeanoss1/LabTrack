@@ -74,6 +74,11 @@ async function asegurarPerfil(u) {
   if (!(await getDoc(ref)).exists()) {
     await setDoc(ref, { nombre: u.nombre, codigo: u.codigo, correo: u.correo, rol: u.rol, estado: "Activo", creado: Date.now() });
   }
+  // índice para ingresar con el código de estudiante (HU-01)
+  const refCodigo = doc(db, "codigos", u.codigo);
+  if (u.rol === "estudiante" && !(await getDoc(refCodigo)).exists()) {
+    await setDoc(refCodigo, { correo: u.correo, uid: user.uid });
+  }
   return user.uid;
 }
 

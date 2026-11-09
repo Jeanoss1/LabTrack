@@ -77,6 +77,15 @@ export function registrarFallo(intento, ahora) {
   };
 }
 
+/** HU-01: el estudiante puede ingresar con su correo o con su código (letra N seguida de 8 dígitos). */
+export function esCodigoEstudiante(identificador) {
+  return /^N\d{8}$/i.test(identificador.trim());
+}
+
+export function normalizarCodigo(codigo) {
+  return codigo.trim().toUpperCase();
+}
+
 /** Normaliza el correo para usarlo como identificador de documento (debe coincidir con firestore.rules). */
 export function claveCorreo(correo) {
   return correo.trim().toLowerCase().replaceAll(/[^a-z0-9]/g, "_");

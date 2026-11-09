@@ -33,6 +33,7 @@ LabTrack/
 │   └── firebase-config.js
 ├── tests/
 │   ├── unit/                   # Pruebas unitarias (node:test)
+│   ├── seguridad/              # Pruebas de reglas de Firestore
 │   ├── selenium/               # Pruebas E2E: Selenium WebDriver + Mocha
 │   └── jmeter/                 # Prueba de carga (.jmx)
 ├── seed.js                     # Carga y reinicio de datos de prueba
@@ -45,7 +46,7 @@ LabTrack/
 
 | Ruta | Vista | HU |
 |------|-------|----|
-| `/` | iniciar_sesion.html | HU-01: correo y Google, "Credenciales inválidas", bloqueo tras 3 intentos |
+| `/` | iniciar_sesion.html | HU-01: ingreso con código de estudiante o correo, y con Google; "Credenciales inválidas"; bloqueo tras 3 intentos |
 | `/registro`, `/completar-perfil` | registro.html, completar_perfil.html | HU-01: registro de estudiantes |
 | `/catalogo` | catalogo.html | HU-02: catálogo y filtros Cómputo / Electrónica / Redes |
 | `/mis-reservas` | mis_reservas.html | HU-03: reserva con fecha y horario, sin cruces, una reserva activa |
@@ -57,15 +58,17 @@ LabTrack/
 2. Crear la base de datos **Cloud Firestore**.
 3. Copiar la configuración web del proyecto en `app/firebase-config.js`.
 4. Instalar las dependencias: `npm install`
-5. Cargar los datos de prueba: `npm run seed`
-6. Levantar el sitio en local: `npm start` (http://localhost:5000)
-7. Publicar: `npx firebase-tools deploy`
+5. Copiar `.env.example` como `.env` y completar las credenciales de prueba
+6. Cargar los datos de prueba: `npm run seed`
+7. Levantar el sitio en local: `npm start` (http://localhost:5000)
+8. Publicar: `npx firebase-tools deploy`
 
 ## Pruebas
 
 ```bash
-npm run test:unit            # pruebas unitarias de las reglas de negocio
-npm run test:e2e             # pruebas Selenium (Chrome)
+npm run test:unit            # 18 pruebas unitarias de las reglas de negocio
+npm run test:seguridad       # 8 pruebas de las reglas de seguridad de Firestore
+npm run test:e2e             # 20 casos E2E con Selenium (Chrome)
 npm run test:e2e:testomat    # igual que la anterior, pero envía los resultados a Testomat.io (variable TESTOMATIO)
 ```
 

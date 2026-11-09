@@ -77,4 +77,21 @@ describe("HU-01 Autenticación segura", function () {
     await capturar(driver, "TC-05_login_encargado");
     await cerrarSesion(driver);
   });
+
+  it("TC-20 Ingreso exitoso con código de estudiante y contraseña", async function () {
+    await iniciarSesion(driver, ana.codigo, ana.clave);
+    await driver.wait(until.urlContains("/catalogo"), 20000);
+    const nombre = await esperarTexto(driver, "#nombre-usuario", ana.codigo);
+    assert.ok(nombre.includes(ana.nombre));
+    await capturar(driver, "TC-20_login_con_codigo");
+    await cerrarSesion(driver);
+  });
+
+  it("TC-21 Código de estudiante no registrado muestra el mensaje de credenciales inválidas", async function () {
+    await iniciarSesion(driver, "N09999998", "ClaveCualquiera1");
+    const texto = await esperarTexto(driver, "#login-mensaje", "Credenciales inválidas");
+    assert.equal(texto, "Credenciales inválidas");
+    assert.ok((await driver.getCurrentUrl()) === BASE_URL + "/");
+    await capturar(driver, "TC-21_codigo_no_registrado");
+  });
 });

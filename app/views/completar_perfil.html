@@ -18,7 +18,7 @@
         <h1>Completa tu perfil</h1>
         <p style="font-size:14px" id="perfil-correo"></p>
         <label for="perfil-codigo">Código de estudiante</label>
-        <input type="text" id="perfil-codigo" placeholder="N00123456" required>
+        <input type="text" id="perfil-codigo" placeholder="N00123456" pattern="[Nn][0-9]{8}" title="Letra N seguida de 8 dígitos" required>
         <button type="submit" class="btn" id="btn-perfil">Guardar y continuar</button>
         <div id="perfil-mensaje" class="mensaje"></div>
       </form>

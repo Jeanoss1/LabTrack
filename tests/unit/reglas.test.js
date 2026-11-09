@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   aMilisegundos, seCruzan, filtrarPorCategoria, validarReserva, debePenalizar,
-  estaBloqueado, registrarFallo, claveCorreo
+  estaBloqueado, registrarFallo, claveCorreo, esCodigoEstudiante, normalizarCodigo
 } from "../../app/servicios/reglas.js";
 
 const EQUIPO = { id: "CMP-001", codigo: "CMP-001", nombre: "Laptop", categoria: "Cómputo", estado: "Disponible" };
@@ -94,6 +94,13 @@ describe("HU-01 Autenticación: bloqueo por intentos fallidos", () => {
     assert.equal(f3.bloqueadoHasta, 1000 + 5 * 60 * 1000);
     assert.equal(estaBloqueado(f3, 2000), true);
     assert.equal(estaBloqueado(f3, 1000 + 5 * 60 * 1000 + 1), false);
+  });
+  test("reconoce el código de estudiante (N + 8 dígitos) para ingresar con él", () => {
+    assert.equal(esCodigoEstudiante("N00200001"), true);
+    assert.equal(esCodigoEstudiante(" n00200001 "), true);
+    assert.equal(esCodigoEstudiante("ana.torres@labtrack.pe"), false);
+    assert.equal(esCodigoEstudiante("N0020001"), false);
+    assert.equal(normalizarCodigo(" n00200001 "), "N00200001");
   });
   test("normaliza la clave del correo", () => {
     assert.equal(claveCorreo(" Ana.Torres@LabTrack.pe "), "ana_torres_labtrack_pe");
