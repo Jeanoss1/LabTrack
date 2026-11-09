@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabTrack | Crear cuenta</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-lado">
+      <img src="/static/img/logo.svg" width="64">
+      <h1>Lab<span style="color:#f5b700">Track</span></h1>
+      <p>Crea tu cuenta de estudiante para reservar equipos del laboratorio.</p>
+    </div>
+    <div class="login-form">
+      <form id="form-registro">
+        <h1>Crear cuenta</h1>
+        <label for="reg-nombre">Nombre completo</label>
+        <input type="text" id="reg-nombre" required>
+        <label for="reg-codigo">Código de estudiante</label>
+        <input type="text" id="reg-codigo" placeholder="N00123456" required>
+        <label for="reg-correo">Correo electrónico</label>
+        <input type="email" id="reg-correo" required>
+        <label for="reg-clave">Contraseña (mínimo 6 caracteres)</label>
+        <input type="password" id="reg-clave" required>
+        <button type="submit" class="btn" id="btn-registro">Registrarme</button>
+        <div id="reg-mensaje" class="mensaje"></div>
+        <p style="font-size:14px;margin-top:20px">¿Ya tienes cuenta? <a href="/">Inicia sesión</a></p>
+      </form>
+    </div>
+  </div>
+  <script type="module" src="/controllers/auth_controller.js"></script>
+</body>
+</html>

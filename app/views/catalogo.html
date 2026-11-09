@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabTrack | Catálogo de equipos</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="marca">Lab<span>Track</span></div>
+    <nav>
+      <a href="/catalogo" class="activo">Catálogo</a>
+      <a href="/mis-reservas">Mis reservas</a>
+      <span class="usuario" id="nombre-usuario"></span>
+      <a href="#" id="btn-salir">Salir</a>
+    </nav>
+  </header>
+  <main class="contenedor">
+    <div class="tarjeta">
+      <h1>Catálogo de equipos del laboratorio</h1>
+      <div class="filtros" id="filtros">
+        <button class="btn filtro activo" data-categoria="Todos">Todos</button>
+        <button class="btn filtro" data-categoria="Cómputo">Cómputo</button>
+        <button class="btn filtro" data-categoria="Electrónica">Electrónica</button>
+        <button class="btn filtro" data-categoria="Redes">Redes</button>
+      </div>
+      <table id="tabla-equipos">
+        <thead>
+          <tr><th>Equipo</th><th>Código de inventario</th><th>Categoría</th><th>Estado</th><th></th></tr>
+        </thead>
+        <tbody id="cuerpo-equipos">
+          <tr><td colspan="5" class="vacio">Cargando equipos...</td></tr>
+        </tbody>
+      </table>
+      <p id="mensaje-vacio" class="vacio oculto">No hay equipos disponibles en esta categoría</p>
+    </div>
+  </main>
+  <script type="module" src="/controllers/catalogo_controller.js"></script>
+</body>
+</html>

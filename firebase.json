@@ -1,0 +1,18 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "app",
+    "ignore": ["firebase.json", "serve.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/", "destination": "/views/iniciar_sesion.html" },
+      { "source": "/registro", "destination": "/views/registro.html" },
+      { "source": "/completar-perfil", "destination": "/views/completar_perfil.html" },
+      { "source": "/catalogo", "destination": "/views/catalogo.html" },
+      { "source": "/mis-reservas", "destination": "/views/mis_reservas.html" },
+      { "source": "/admin", "destination": "/views/admin_reservas.html" }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabTrack | Completar perfil</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-lado">
+      <img src="/static/img/logo.svg" width="64">
+      <h1>Lab<span style="color:#f5b700">Track</span></h1>
+      <p>Ingresaste con Google. Solo falta tu código de estudiante.</p>
+    </div>
+    <div class="login-form">
+      <form id="form-perfil">
+        <h1>Completa tu perfil</h1>
+        <p style="font-size:14px" id="perfil-correo"></p>
+        <label for="perfil-codigo">Código de estudiante</label>
+        <input type="text" id="perfil-codigo" placeholder="N00123456" required>
+        <button type="submit" class="btn" id="btn-perfil">Guardar y continuar</button>
+        <div id="perfil-mensaje" class="mensaje"></div>
+      </form>
+    </div>
+  </div>
+  <script type="module" src="/controllers/auth_controller.js"></script>
+</body>
+</html>

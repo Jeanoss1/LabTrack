@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    match /usuarios/{uid} {
+      allow read, write: if autenticado();
+    }
+
+    match /equipos/{id} {
+      allow read: if true;
+      allow write: if autenticado();
+    }
+
+    match /reservas/{id} {
+      allow read, write: if autenticado();
+    }
+
+    match /intentosLogin/{clave} {
+      allow read, write: if true;
+    }
+  }
+}

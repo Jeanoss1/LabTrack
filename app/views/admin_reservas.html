@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabTrack | Panel del encargado</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="marca">Lab<span>Track</span> · Encargado</div>
+    <nav>
+      <span class="usuario" id="nombre-usuario"></span>
+      <a href="#" id="btn-salir">Salir</a>
+    </nav>
+  </header>
+  <main class="contenedor">
+    <div id="admin-mensaje" class="mensaje"></div>
+    <div class="tarjeta">
+      <h1>Solicitudes de reserva pendientes</h1>
+      <table id="tabla-pendientes">
+        <thead>
+          <tr><th>Estudiante</th><th>Equipo</th><th>Fecha/Hora solicitada</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="cuerpo-pendientes"></tbody>
+      </table>
+    </div>
+    <div class="tarjeta">
+      <h1>Reservas activas (registro de devolución)</h1>
+      <input type="text" id="buscar-activa" placeholder="Buscar por estudiante, código o equipo" style="margin-bottom:12px">
+      <table id="tabla-activas">
+        <thead>
+          <tr><th>Estudiante</th><th>Equipo</th><th>Fecha/Hora</th><th>Estado</th><th>Acción</th></tr>
+        </thead>
+        <tbody id="cuerpo-activas"></tbody>
+      </table>
+    </div>
+  </main>
+  <div class="modal-fondo" id="modal-rechazo">
+    <div class="modal">
+      <h2>Rechazar solicitud</h2>
+      <label for="motivo-rechazo">Motivo del rechazo (obligatorio)</label>
+      <textarea id="motivo-rechazo" rows="3" placeholder="Ej. Equipo en mantenimiento"></textarea>
+      <div id="rechazo-mensaje" class="mensaje"></div>
+      <div class="acciones">
+        <button class="btn btn-sec" id="btn-cancelar-rechazo">Cancelar</button>
+        <button class="btn btn-rojo" id="btn-confirmar-rechazo">Confirmar rechazo</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/controllers/admin_controller.js"></script>
+</body>
+</html>

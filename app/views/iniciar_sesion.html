@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabTrack | Iniciar sesión</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-lado">
+      <img src="/static/img/logo.svg" width="64">
+      <h1>Lab<span style="color:#f5b700">Track</span></h1>
+      <p>Sistema de gestión de préstamos de equipos de laboratorio. Reserva computadoras, kits de electrónica y equipos de redes para tus prácticas.</p>
+      <p style="font-size:13px;opacity:.7">Más información en <a href="http://www.upn.edu.pe" target="_blank" style="color:#fff">upn.edu.pe</a></p>
+    </div>
+    <div class="login-form">
+      <form id="form-login">
+        <h1>Iniciar sesión</h1>
+        <label for="login-correo">Correo electrónico</label>
+        <input type="email" id="login-correo" placeholder="estudiante@upn.pe" required>
+        <label for="login-clave">Contraseña</label>
+        <input type="password" id="login-clave" placeholder="••••••••" required>
+        <button type="submit" class="btn" id="btn-login">Ingresar</button>
+        <div class="separador">o</div>
+        <button type="button" class="btn btn-google" id="btn-google">Continuar con Google</button>
+        <div id="login-mensaje" class="mensaje"></div>
+        <p style="font-size:14px;margin-top:20px">¿No tienes cuenta? <a href="/registro" id="ir-registro">Regístrate</a></p>
+      </form>
+    </div>
+  </div>
+  <script type="module" src="/controllers/auth_controller.js"></script>
+</body>
+</html>

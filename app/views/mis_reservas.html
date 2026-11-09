@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabTrack | Mis reservas</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="marca">Lab<span>Track</span></div>
+    <nav>
+      <a href="/catalogo">Catálogo</a>
+      <a href="/mis-reservas" class="activo">Mis reservas</a>
+      <span class="usuario" id="nombre-usuario"></span>
+      <a href="#" id="btn-salir">Salir</a>
+    </nav>
+  </header>
+  <main class="contenedor">
+    <div id="aviso-penalizado" class="mensaje alerta">Tu cuenta está penalizada por una devolución tardía. No puedes registrar nuevas reservas.</div>
+    <div class="tarjeta">
+      <h1>Solicitar reserva de equipo</h1>
+      <form id="form-reserva">
+        <div class="fila">
+          <div>
+            <label for="res-equipo">Equipo</label>
+            <select id="res-equipo" required>
+              <option value="">Selecciona un equipo</option>
+            </select>
+          </div>
+          <div>
+            <label for="res-fecha">Fecha</label>
+            <input type="date" id="res-fecha" required>
+          </div>
+          <div>
+            <label for="res-inicio">Hora de inicio</label>
+            <input type="time" id="res-inicio" required>
+          </div>
+          <div>
+            <label for="res-fin">Hora de fin</label>
+            <input type="time" id="res-fin" required>
+          </div>
+        </div>
+        <button type="submit" class="btn" id="btn-reservar" style="margin-top:16px">Solicitar reserva</button>
+        <div id="reserva-mensaje" class="mensaje"></div>
+      </form>
+    </div>
+    <div class="tarjeta">
+      <h2>Historial de mis reservas</h2>
+      <table id="tabla-mis-reservas">
+        <thead>
+          <tr><th>Equipo</th><th>Fecha</th><th>Horario</th><th>Estado</th><th>Observación</th></tr>
+        </thead>
+        <tbody id="cuerpo-mis-reservas"></tbody>
+      </table>
+    </div>
+  </main>
+  <script type="module" src="/controllers/reserva_controller.js"></script>
+</body>
+</html>
