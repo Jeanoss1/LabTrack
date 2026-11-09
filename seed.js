@@ -1,6 +1,8 @@
 // Carga y reinicio de datos de prueba de LabTrack
 // Uso: node seed.js          -> crea usuarios de prueba y equipos
-//      node seed.js --reset  -> borra reservas, intentos y deja los equipos disponibles
+//      node seed.js --reset  -> borra reservas e intentos y deja los equipos disponibles
+// Las credenciales se leen de variables de entorno o del archivo .env (ver .env.example).
+import fs from "node:fs";
 import { initializeApp } from "firebase/app";
 import {
   getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
@@ -10,12 +12,24 @@ import {
 } from "firebase/firestore";
 import { firebaseConfig } from "./app/firebase-config.js";
 
-const ADMIN = { correo: "encargado@labtrack.pe", clave: "Encargado2026", nombre: "Carlos Mendoza (Encargado)", codigo: "ADM-001", rol: "admin" };
+if (fs.existsSync(".env")) process.loadEnvFile(".env");
+
+function requerida(nombre) {
+  const valor = process.env[nombre];
+  if (!valor) throw new Error(`Falta la variable de entorno ${nombre} (revisa el archivo .env)`);
+  return valor;
+}
+
+const ADMIN = {
+  correo: requerida("ADMIN_EMAIL"), clave: requerida("ADMIN_PASSWORD"),
+  nombre: "Carlos Mendoza (Encargado)", codigo: "ADM-001", rol: "admin"
+};
+const claveEstudiantes = requerida("EST_PASSWORD");
 const ESTUDIANTES = [
-  { correo: "ana.torres@labtrack.pe", clave: "Estudiante2026", nombre: "Ana Torres Díaz", codigo: "N00200001", rol: "estudiante" },
-  { correo: "luis.campos@labtrack.pe", clave: "Estudiante2026", nombre: "Luis Campos Rojas", codigo: "N00200002", rol: "estudiante" },
-  { correo: "maria.rojas@labtrack.pe", clave: "Estudiante2026", nombre: "María Rojas Vega", codigo: "N00200003", rol: "estudiante" }
-];
+  { correo: requerida("EST1_EMAIL"), nombre: "Ana Torres Díaz", codigo: "N00200001" },
+  { correo: requerida("EST2_EMAIL"), nombre: "Luis Campos Rojas", codigo: "N00200002" },
+  { correo: requerida("EST3_EMAIL"), nombre: "María Rojas Vega", codigo: "N00200003" }
+].map((e) => ({ ...e, clave: claveEstudiantes, rol: "estudiante" }));
 
 export const EQUIPOS = [
   { codigo: "CMP-001", nombre: "Laptop Lenovo ThinkPad E14", categoria: "Cómputo" },
@@ -38,12 +52,16 @@ const db = getFirestore(app);
 
 export const usuarios = { admin: ADMIN, estudiantes: ESTUDIANTES };
 
-async function entrar(u) {
+const dosDigitos = (n) => String(n).padStart(2, "0");
+const aFecha = (d) => `${d.getFullYear()}-${dosDigitos(d.getMonth() + 1)}-${dosDigitos(d.getDate())}`;
+const aHora = (d) => `${dosDigitos(d.getHours())}:${dosDigitos(d.getMinutes())}`;
+
+async function entrar(u, crearSiNoExiste = false) {
   await signOut(auth);
   try {
     return (await signInWithEmailAndPassword(auth, u.correo, u.clave)).user;
   } catch (e) {
-    if (e.code === "auth/invalid-credential" || e.code === "auth/user-not-found") {
+    if (crearSiNoExiste && e.code === "auth/invalid-credential") {
       return (await createUserWithEmailAndPassword(auth, u.correo, u.clave)).user;
     }
     throw e;
@@ -51,28 +69,31 @@ async function entrar(u) {
 }
 
 async function asegurarPerfil(u) {
-  const user = await entrar(u);
+  const user = await entrar(u, true);
   const ref = doc(db, "usuarios", user.uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
+  if (!(await getDoc(ref)).exists()) {
     await setDoc(ref, { nombre: u.nombre, codigo: u.codigo, correo: u.correo, rol: u.rol, estado: "Activo", creado: Date.now() });
   }
   return user.uid;
 }
 
+function equipoDisponible(e) {
+  return { ...e, estado: "Disponible" };
+}
+
 export async function sembrarEquipos(categorias) {
   await entrar(ADMIN);
-  const batch = writeBatch(db);
-  EQUIPOS.filter(e => !categorias || categorias.includes(e.categoria))
-    .forEach(e => batch.set(doc(db, "equipos", e.codigo), { ...e, estado: "Disponible" }));
-  await batch.commit();
+  const lote = writeBatch(db);
+  EQUIPOS.filter((e) => !categorias || categorias.includes(e.categoria))
+    .forEach((e) => lote.set(doc(db, "equipos", e.codigo), equipoDisponible(e)));
+  await lote.commit();
 }
 
 export async function borrarCategoria(categoria) {
   await entrar(ADMIN);
-  const batch = writeBatch(db);
-  EQUIPOS.filter(e => e.categoria === categoria).forEach(e => batch.delete(doc(db, "equipos", e.codigo)));
-  await batch.commit();
+  const lote = writeBatch(db);
+  EQUIPOS.filter((e) => e.categoria === categoria).forEach((e) => lote.delete(doc(db, "equipos", e.codigo)));
+  await lote.commit();
 }
 
 export async function sembrar() {
@@ -87,31 +108,22 @@ export async function sembrar() {
 
 export async function resetear() {
   await entrar(ADMIN);
-  const batch = writeBatch(db);
-  (await getDocs(collection(db, "reservas"))).forEach(d => batch.delete(d.ref));
-  (await getDocs(collection(db, "intentosLogin"))).forEach(d => batch.delete(d.ref));
-  (await getDocs(collection(db, "usuarios"))).forEach(d => {
-    if (d.data().rol === "estudiante") batch.update(d.ref, { estado: "Activo" });
+  const lote = writeBatch(db);
+  (await getDocs(collection(db, "reservas"))).forEach((d) => lote.delete(d.ref));
+  (await getDocs(collection(db, "intentosLogin"))).forEach((d) => lote.delete(d.ref));
+  (await getDocs(collection(db, "usuarios"))).forEach((d) => {
+    if (d.data().rol === "estudiante") lote.update(d.ref, { estado: "Activo" });
   });
-  EQUIPOS.forEach(e => batch.set(doc(db, "equipos", e.codigo), { ...e, estado: "Disponible" }));
-  await batch.commit();
+  EQUIPOS.forEach((e) => lote.set(doc(db, "equipos", e.codigo), equipoDisponible(e)));
+  await lote.commit();
   await signOut(auth);
 }
 
-// Crea una reserva ya vencida (para probar la penalización por devolución tardía)
-export async function crearReservaVencida(correoEstudiante, codigoEquipo) {
-  const fin = new Date(Date.now() - 60 * 60 * 1000);
-  const inicio = new Date(fin.getTime() - 60 * 60 * 1000);
-  return crearReserva(correoEstudiante, codigoEquipo, inicio, fin);
-}
-
-// Crea una solicitud de reserva pendiente a nombre de un estudiante
+/** Crea una solicitud de reserva pendiente a nombre de un estudiante. */
 export async function crearReserva(correoEstudiante, codigoEquipo, inicio, fin) {
-  const est = ESTUDIANTES.find(e => e.correo === correoEstudiante);
+  const est = ESTUDIANTES.find((e) => e.correo === correoEstudiante);
+  const equipo = EQUIPOS.find((e) => e.codigo === codigoEquipo);
   const user = await entrar(est);
-  const equipo = EQUIPOS.find(e => e.codigo === codigoEquipo);
-  const dosDig = n => String(n).padStart(2, "0");
-  const fecha = `${inicio.getFullYear()}-${dosDig(inicio.getMonth() + 1)}-${dosDig(inicio.getDate())}`;
   const ref = await addDoc(collection(db, "reservas"), {
     estudianteId: user.uid,
     estudianteNombre: est.nombre,
@@ -119,9 +131,9 @@ export async function crearReserva(correoEstudiante, codigoEquipo, inicio, fin) 
     equipoId: equipo.codigo,
     equipoNombre: equipo.nombre,
     equipoCodigo: equipo.codigo,
-    fecha,
-    horaInicio: `${dosDig(inicio.getHours())}:${dosDig(inicio.getMinutes())}`,
-    horaFin: `${dosDig(fin.getHours())}:${dosDig(fin.getMinutes())}`,
+    fecha: aFecha(inicio),
+    horaInicio: aHora(inicio),
+    horaFin: aHora(fin),
     inicio: inicio.getTime(),
     fin: fin.getTime(),
     estado: "Pendiente",
@@ -131,13 +143,27 @@ export async function crearReserva(correoEstudiante, codigoEquipo, inicio, fin) 
   return ref.id;
 }
 
+/** Reserva que terminó hace una hora (para probar la penalización por devolución tardía). */
+export function crearReservaVencida(correoEstudiante, codigoEquipo) {
+  const fin = new Date(Date.now() - 60 * 60 * 1000);
+  const inicio = new Date(fin.getTime() - 60 * 60 * 1000);
+  return crearReserva(correoEstudiante, codigoEquipo, inicio, fin);
+}
+
 export async function estadoEstudiante(correoEstudiante) {
   await entrar(ADMIN);
   const snap = await getDocs(collection(db, "usuarios"));
-  let estado = null;
-  snap.forEach(d => { if (d.data().correo === correoEstudiante) estado = d.data().estado; });
   await signOut(auth);
-  return estado;
+  const encontrado = snap.docs.find((d) => d.data().correo === correoEstudiante);
+  return encontrado ? encontrado.data().estado : null;
+}
+
+export async function fijarEstadoEstudiante(correoEstudiante, estado) {
+  await entrar(ADMIN);
+  const snap = await getDocs(collection(db, "usuarios"));
+  const encontrado = snap.docs.find((d) => d.data().correo === correoEstudiante);
+  if (encontrado) await updateDoc(encontrado.ref, { estado });
+  await signOut(auth);
 }
 
 export async function estadoEquipo(codigo) {
@@ -152,9 +178,14 @@ export async function actualizarEquipo(codigo, datos) {
 }
 
 // Ejecución directa desde la consola
-if (process.argv[1] && process.argv[1].endsWith("seed.js")) {
+if (process.argv[1]?.endsWith("seed.js")) {
   const reset = process.argv.includes("--reset");
-  (reset ? resetear() : sembrar())
-    .then(r => { console.log(reset ? "Datos reiniciados." : "Datos cargados:", r || ""); process.exit(0); })
-    .catch(e => { console.error(e); process.exit(1); });
+  try {
+    const resultado = reset ? await resetear() : await sembrar();
+    console.log(reset ? "Datos reiniciados." : "Datos cargados:", resultado ?? "");
+    process.exit(0);
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
+  }
 }

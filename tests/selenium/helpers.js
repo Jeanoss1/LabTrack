@@ -3,6 +3,8 @@ import chrome from "selenium-webdriver/chrome.js";
 import fs from "node:fs";
 import path from "node:path";
 
+if (fs.existsSync(".env")) process.loadEnvFile(".env");
+
 export const BASE_URL = process.env.BASE_URL || "http://localhost:5000";
 const CARPETA_CAPTURAS = path.resolve("tests/selenium/capturas");
 

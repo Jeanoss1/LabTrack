@@ -1,138 +1,113 @@
 // Controlador de reservas del estudiante (HU-03, flujo crítico)
-import { auth } from "../oauth.js";
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { obtenerPerfil } from "../models/Usuario.js";
 import { listarEquipos } from "../models/Equipo.js";
 import {
   reservasDeEstudiante, reservasActivasDeEstudiante, reservasAprobadasDeEquipo, crearReserva
 } from "../models/Reserva.js";
 import { validarReserva } from "../servicios/reglas.js";
+import { protegerVista, enlazarCerrarSesion } from "../static/js/sesion.js";
+import { crear, celda, etiquetaEstado, pintarTabla, mostrarMensaje, manejar } from "../static/js/ui.js";
 
-var usuario = null;
-var perfil = null;
-var equipos = [];
+const ID_MENSAJE = "reserva-mensaje";
+let usuario = null;
+let perfil = null;
+let equipos = [];
 
-// Control de sesión
-onAuthStateChanged(auth, async function (user) {
-  if (!user) {
-    window.location.href = "/";
-    return;
-  }
-  perfil = await obtenerPerfil(user.uid);
-  if (!perfil) {
-    window.location.href = "/completar-perfil";
-    return;
-  }
-  if (perfil.rol == "admin") {
-    window.location.href = "/admin";
-    return;
-  }
-  usuario = user;
-  document.getElementById("nombre-usuario").textContent = perfil.nombre + " (" + perfil.codigo + ")";
-  if (perfil.estado == "Penalizado") {
-    document.getElementById("aviso-penalizado").classList.add("visible");
-  }
-  await cargarEquipos();
-  await cargarMisReservas();
-});
+function observacion(reserva) {
+  if (reserva.motivoRechazo) return reserva.motivoRechazo;
+  return reserva.penalizado ? "Devolución tardía" : "";
+}
 
-document.getElementById("btn-salir").addEventListener("click", async function (e) {
-  e.preventDefault();
-  await signOut(auth);
-  window.location.href = "/";
-});
-
-function mostrar(texto, tipo) {
-  var el = document.getElementById("reserva-mensaje");
-  el.textContent = texto;
-  el.className = "mensaje visible " + tipo;
+function filaReserva(r) {
+  const tr = crear("tr");
+  tr.append(
+    celda(`${r.equipoCodigo} - ${r.equipoNombre}`),
+    celda(r.fecha),
+    celda(`${r.horaInicio} - ${r.horaFin}`),
+    celda(etiquetaEstado(r.estado)),
+    celda(observacion(r))
+  );
+  return tr;
 }
 
 async function cargarEquipos() {
   equipos = await listarEquipos();
-  var select = document.getElementById("res-equipo");
-  var preseleccion = new URLSearchParams(window.location.search).get("equipo");
-  for (var i = 0; i < equipos.length; i++) {
-    var e = equipos[i];
-    var op = document.createElement("option");
-    op.value = e.id;
-    op.textContent = e.codigo + " - " + e.nombre + " (" + e.estado + ")";
-    if (e.id == preseleccion) op.selected = true;
-    select.appendChild(op);
+  const select = document.getElementById("res-equipo");
+  const preseleccion = new URLSearchParams(window.location.search).get("equipo");
+  for (const e of equipos) {
+    const opcion = crear("option", { texto: `${e.codigo} - ${e.nombre} (${e.estado})`, atributos: { value: e.id } });
+    opcion.selected = e.id === preseleccion;
+    select.append(opcion);
   }
 }
 
 async function cargarMisReservas() {
-  var lista = await reservasDeEstudiante(usuario.uid);
-  var cuerpo = document.getElementById("cuerpo-mis-reservas");
-  var html = "";
-  for (var i = 0; i < lista.length; i++) {
-    var r = lista[i];
-    html += "<tr>" +
-      "<td>" + r.equipoCodigo + " - " + r.equipoNombre + "</td>" +
-      "<td>" + r.fecha + "</td>" +
-      "<td>" + r.horaInicio + " - " + r.horaFin + "</td>" +
-      "<td><span class='estado estado-" + r.estado + "'>" + r.estado + "</span></td>" +
-      "<td>" + (r.motivoRechazo ? r.motivoRechazo : (r.penalizado ? "Devolución tardía" : "")) + "</td>" +
-      "</tr>";
-  }
-  if (html == "") html = "<tr><td colspan='5' class='vacio'>Aún no tienes reservas.</td></tr>";
-  cuerpo.innerHTML = html;
+  const lista = await reservasDeEstudiante(usuario.uid);
+  pintarTabla("cuerpo-mis-reservas", lista.map(filaReserva), 5, "Aún no tienes reservas.");
 }
 
-document.getElementById("form-reserva").addEventListener("submit", async function (e) {
-  e.preventDefault();
-  var boton = document.getElementById("btn-reservar");
+function leerFormulario() {
+  const equipoId = document.getElementById("res-equipo").value;
+  return {
+    equipo: equipos.find((e) => e.id === equipoId) ?? null,
+    fecha: document.getElementById("res-fecha").value,
+    horaInicio: document.getElementById("res-inicio").value,
+    horaFin: document.getElementById("res-fin").value
+  };
+}
+
+async function solicitarReserva() {
+  const solicitud = leerFormulario();
+  const [activas, aprobadas] = await Promise.all([
+    reservasActivasDeEstudiante(usuario.uid),
+    solicitud.equipo ? reservasAprobadasDeEquipo(solicitud.equipo.id) : Promise.resolve([])
+  ]);
+
+  const resultado = validarReserva({
+    ...solicitud,
+    ahora: Date.now(),
+    reservasActivasEstudiante: activas,
+    reservasAprobadasEquipo: aprobadas,
+    estadoEstudiante: perfil.estado
+  });
+  if (!resultado.ok) {
+    mostrarMensaje(ID_MENSAJE, resultado.error, "error");
+    return;
+  }
+
+  const { equipo } = solicitud;
+  await crearReserva({
+    estudianteId: usuario.uid,
+    estudianteNombre: perfil.nombre,
+    estudianteCodigo: perfil.codigo,
+    equipoId: equipo.id,
+    equipoNombre: equipo.nombre,
+    equipoCodigo: equipo.codigo,
+    fecha: solicitud.fecha,
+    horaInicio: solicitud.horaInicio,
+    horaFin: solicitud.horaFin,
+    inicio: resultado.inicio,
+    fin: resultado.fin
+  });
+  mostrarMensaje(ID_MENSAJE, "Solicitud de reserva registrada. Estado: Pendiente de aprobación.", "ok");
+  document.getElementById("form-reserva").reset();
+  await cargarMisReservas();
+}
+
+document.getElementById("form-reserva").addEventListener("submit", (evento) => {
+  evento.preventDefault();
+  const boton = document.getElementById("btn-reservar");
   boton.disabled = true;
-  var equipoId = document.getElementById("res-equipo").value;
-  var fecha = document.getElementById("res-fecha").value;
-  var horaInicio = document.getElementById("res-inicio").value;
-  var horaFin = document.getElementById("res-fin").value;
-  var equipo = null;
-  for (var i = 0; i < equipos.length; i++) {
-    if (equipos[i].id == equipoId) equipo = equipos[i];
-  }
-
-  try {
-    var activas = await reservasActivasDeEstudiante(usuario.uid);
-    var aprobadas = equipo ? await reservasAprobadasDeEquipo(equipo.id) : [];
-
-    var resultado = validarReserva({
-      equipo: equipo,
-      fecha: fecha,
-      horaInicio: horaInicio,
-      horaFin: horaFin,
-      ahora: Date.now(),
-      reservasActivasEstudiante: activas,
-      reservasAprobadasEquipo: aprobadas,
-      estadoEstudiante: perfil.estado
-    });
-
-    if (!resultado.ok) {
-      mostrar(resultado.error, "error");
-      boton.disabled = false;
-      return;
-    }
-
-    await crearReserva({
-      estudianteId: usuario.uid,
-      estudianteNombre: perfil.nombre,
-      estudianteCodigo: perfil.codigo,
-      equipoId: equipo.id,
-      equipoNombre: equipo.nombre,
-      equipoCodigo: equipo.codigo,
-      fecha: fecha,
-      horaInicio: horaInicio,
-      horaFin: horaFin,
-      inicio: resultado.inicio,
-      fin: resultado.fin
-    });
-    mostrar("Solicitud de reserva registrada. Estado: Pendiente de aprobación.", "ok");
-    document.getElementById("form-reserva").reset();
-    await cargarMisReservas();
-  } catch (err) {
-    console.log(err);
-    mostrar("No se pudo registrar la reserva. Intenta nuevamente.", "error");
-  }
-  boton.disabled = false;
+  const proceso = solicitarReserva().finally(() => { boton.disabled = false; });
+  manejar(proceso, ID_MENSAJE, "No se pudo registrar la reserva. Intenta nuevamente.");
 });
+
+async function iniciar() {
+  ({ user: usuario, perfil } = await protegerVista("estudiante"));
+  document.getElementById("nombre-usuario").textContent = `${perfil.nombre} (${perfil.codigo})`;
+  document.getElementById("aviso-penalizado").classList.toggle("visible", perfil.estado === "Penalizado");
+  await cargarEquipos();
+  await cargarMisReservas();
+}
+
+enlazarCerrarSesion();
+manejar(iniciar(), ID_MENSAJE, "No se pudieron cargar tus datos.");

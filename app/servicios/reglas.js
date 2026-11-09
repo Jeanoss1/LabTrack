@@ -1,85 +1,83 @@
 // Reglas de negocio de LabTrack (sin dependencias de Firebase para poder probarlas)
 
-export var CATEGORIAS = ["Cómputo", "Electrónica", "Redes"];
-export var MAX_INTENTOS = 3;
-export var MINUTOS_BLOQUEO = 5;
+export const CATEGORIAS = Object.freeze(["Cómputo", "Electrónica", "Redes"]);
+export const MAX_INTENTOS = 3;
+export const MINUTOS_BLOQUEO = 5;
+const MS_POR_MINUTO = 60 * 1000;
 
+export const MENSAJES = Object.freeze({
+  penalizado: "Tu cuenta está penalizada. No puedes realizar nuevas reservas.",
+  sinEquipo: "Selecciona un equipo.",
+  camposIncompletos: "Completa la fecha, la hora de inicio y la hora de fin.",
+  horarioInvalido: "La hora de fin debe ser posterior a la hora de inicio.",
+  fechaPasada: "No puedes reservar en una fecha u hora pasada.",
+  reservaActiva: "Ya tienes un equipo reservado. Solo se permite una reserva activa a la vez.",
+  cruce: "El equipo ya tiene una reserva aprobada que se cruza con ese horario."
+});
+
+/** Convierte una fecha "AAAA-MM-DD" y una hora "HH:MM" (hora local) a milisegundos. */
 export function aMilisegundos(fecha, hora) {
-  var partesF = fecha.split("-");
-  var partesH = hora.split(":");
-  var d = new Date(parseInt(partesF[0]), parseInt(partesF[1]) - 1, parseInt(partesF[2]), parseInt(partesH[0]), parseInt(partesH[1]), 0, 0);
-  return d.getTime();
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const [horas, minutos] = hora.split(":").map(Number);
+  return new Date(anio, mes - 1, dia, horas, minutos, 0, 0).getTime();
 }
 
+/** Dos intervalos [inicio, fin) se cruzan si cada uno empieza antes de que termine el otro. */
 export function seCruzan(a, b) {
   return a.inicio < b.fin && b.inicio < a.fin;
 }
 
 export function filtrarPorCategoria(equipos, categoria) {
-  var resultado = [];
-  for (var i = 0; i < equipos.length; i++) {
-    if (categoria == "Todos" || equipos[i].categoria == categoria) {
-      resultado.push(equipos[i]);
-    }
-  }
-  return resultado;
+  if (categoria === "Todos") return [...equipos];
+  return equipos.filter((equipo) => equipo.categoria === categoria);
 }
 
+function error(mensaje) {
+  return { ok: false, error: mensaje };
+}
+
+/**
+ * Valida una solicitud de reserva (HU-03).
+ * Devuelve { ok: true, inicio, fin } o { ok: false, error }.
+ */
 export function validarReserva(datos) {
-  var temp = null;
-  if (datos.estadoEstudiante == "Penalizado") {
-    return { ok: false, error: "Tu cuenta está penalizada. No puedes realizar nuevas reservas." };
-  } else {
-    if (!datos.equipo) {
-      return { ok: false, error: "Selecciona un equipo." };
-    } else {
-      if (!datos.fecha || !datos.horaInicio || !datos.horaFin) {
-        return { ok: false, error: "Completa la fecha, la hora de inicio y la hora de fin." };
-      } else {
-        var inicio = aMilisegundos(datos.fecha, datos.horaInicio);
-        var fin = aMilisegundos(datos.fecha, datos.horaFin);
-        if (fin <= inicio) {
-          return { ok: false, error: "La hora de fin debe ser posterior a la hora de inicio." };
-        } else {
-          if (inicio < datos.ahora) {
-            return { ok: false, error: "No puedes reservar en una fecha u hora pasada." };
-          } else {
-            if (datos.reservasActivasEstudiante.length > 0) {
-              return { ok: false, error: "Ya tienes un equipo reservado. Solo se permite una reserva activa a la vez." };
-            } else {
-              for (var i = 0; i < datos.reservasAprobadasEquipo.length; i++) {
-                var r = datos.reservasAprobadasEquipo[i];
-                if (r.inicio < fin && inicio < r.fin) {
-                  return { ok: false, error: "El equipo ya tiene una reserva aprobada que se cruza con ese horario." };
-                }
-              }
-              return { ok: true, inicio: inicio, fin: fin };
-            }
-          }
-        }
-      }
-    }
-  }
+  const { equipo, fecha, horaInicio, horaFin, ahora, estadoEstudiante } = datos;
+
+  if (estadoEstudiante === "Penalizado") return error(MENSAJES.penalizado);
+  if (!equipo) return error(MENSAJES.sinEquipo);
+  if (!fecha || !horaInicio || !horaFin) return error(MENSAJES.camposIncompletos);
+
+  const solicitud = { inicio: aMilisegundos(fecha, horaInicio), fin: aMilisegundos(fecha, horaFin) };
+
+  if (solicitud.fin <= solicitud.inicio) return error(MENSAJES.horarioInvalido);
+  if (solicitud.inicio < ahora) return error(MENSAJES.fechaPasada);
+  if (datos.reservasActivasEstudiante.length > 0) return error(MENSAJES.reservaActiva);
+  if (datos.reservasAprobadasEquipo.some((r) => seCruzan(r, solicitud))) return error(MENSAJES.cruce);
+
+  return { ok: true, ...solicitud };
 }
 
+/** HU-05: se penaliza cuando la devolución ocurre después de la hora de fin acordada. */
 export function debePenalizar(finReserva, ahora) {
-  if (ahora > finReserva) {
-    return true;
-  } else {
-    return false;
-  }
+  return ahora > finReserva;
 }
 
 export function estaBloqueado(intento, ahora) {
-  return intento != null && intento.bloqueadoHasta != null && intento.bloqueadoHasta > ahora;
+  return Boolean(intento?.bloqueadoHasta) && intento.bloqueadoHasta > ahora;
 }
 
+/** HU-01: registra un intento fallido; al tercero consecutivo bloquea la cuenta MINUTOS_BLOQUEO minutos. */
 export function registrarFallo(intento, ahora) {
-  var fallos = (intento && intento.fallos ? intento.fallos : 0) + 1;
-  var bloqueadoHasta = fallos >= MAX_INTENTOS ? ahora + MINUTOS_BLOQUEO * 60 * 1000 : null;
-  return { fallos: fallos >= MAX_INTENTOS ? 0 : fallos, bloqueadoHasta: bloqueadoHasta, bloqueado: fallos >= MAX_INTENTOS };
+  const fallos = (intento?.fallos ?? 0) + 1;
+  const bloqueado = fallos >= MAX_INTENTOS;
+  return {
+    fallos: bloqueado ? 0 : fallos,
+    bloqueadoHasta: bloqueado ? ahora + MINUTOS_BLOQUEO * MS_POR_MINUTO : null,
+    bloqueado
+  };
 }
 
+/** Normaliza el correo para usarlo como identificador de documento (debe coincidir con firestore.rules). */
 export function claveCorreo(correo) {
-  return correo.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+  return correo.trim().toLowerCase().replaceAll(/[^a-z0-9]/g, "_");
 }

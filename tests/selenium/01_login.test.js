@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { crearDriver, capturar, esperar, esperarTexto, escribir, iniciarSesion, cerrarSesion, BASE_URL, By, until } from "./helpers.js";
 import { resetear, usuarios } from "../../seed.js";
 
@@ -55,11 +56,13 @@ describe("HU-01 Autenticación segura", function () {
     await escribir(driver, "#reg-nombre", "Estudiante Prueba " + sufijo);
     await escribir(driver, "#reg-codigo", "N00" + String(sufijo).slice(-6));
     await escribir(driver, "#reg-correo", `qa.${sufijo}@labtrack.pe`);
-    await escribir(driver, "#reg-clave", "Prueba2026");
+    await escribir(driver, "#reg-clave", crypto.randomBytes(9).toString("base64url"));
     await capturar(driver, "TC-04_formulario_registro");
     await driver.findElement(By.css("#btn-registro")).click();
     await driver.wait(until.urlContains("/catalogo"), 20000);
-    await esperarTexto(driver, "#nombre-usuario", "Estudiante Prueba");
+    const nombre = await esperarTexto(driver, "#nombre-usuario", "Estudiante Prueba");
+    assert.ok(nombre.includes(String(sufijo)), "El panel debe mostrar el nombre del estudiante registrado");
+    assert.ok((await driver.getCurrentUrl()).endsWith("/catalogo"));
     await capturar(driver, "TC-04_registro_exitoso");
     await cerrarSesion(driver);
   });
@@ -67,7 +70,10 @@ describe("HU-01 Autenticación segura", function () {
   it("TC-05 El encargado ingresa directamente al panel de administración", async function () {
     await iniciarSesion(driver, admin.correo, admin.clave);
     await driver.wait(until.urlContains("/admin"), 20000);
-    await esperar(driver, "#tabla-pendientes");
+    const tabla = await esperar(driver, "#tabla-pendientes");
+    assert.ok(await tabla.isDisplayed());
+    const nombre = await esperarTexto(driver, "#nombre-usuario", "Encargado");
+    assert.match(nombre, /Carlos Mendoza/);
     await capturar(driver, "TC-05_login_encargado");
     await cerrarSesion(driver);
   });

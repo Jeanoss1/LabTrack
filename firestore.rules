@@ -2,25 +2,91 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------- Funciones auxiliares ----------
     function autenticado() {
       return request.auth != null;
     }
 
-    match /usuarios/{uid} {
-      allow read, write: if autenticado();
+    function perfil() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
     }
 
+    function esAdmin() {
+      return autenticado() && perfil().rol == 'admin';
+    }
+
+    function soloCambia(campos) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(campos);
+    }
+
+    // Misma normalización que claveCorreo() en app/servicios/reglas.js
+    function claveDelUsuario() {
+      return request.auth.token.email.lower().replace('[^a-z0-9]', '_');
+    }
+
+    // ---------- Usuarios ----------
+    match /usuarios/{uid} {
+      allow read: if autenticado() && (request.auth.uid == uid || esAdmin());
+
+      // Un usuario solo crea su propio perfil y siempre como estudiante activo.
+      // Única excepción: la cuenta institucional del encargado del laboratorio.
+      allow create: if autenticado() && request.auth.uid == uid
+        && request.resource.data.estado == 'Activo'
+        && (request.resource.data.rol == 'estudiante'
+            || (request.resource.data.rol == 'admin' && request.auth.token.email == 'encargado@labtrack.pe'));
+
+      // El estudiante solo puede editar datos personales; rol y estado los cambia el encargado.
+      allow update: if esAdmin()
+        || (autenticado() && request.auth.uid == uid && soloCambia(['nombre', 'codigo']));
+
+      allow delete: if false;
+    }
+
+    // ---------- Equipos (catálogo público, HU-02) ----------
     match /equipos/{id} {
       allow read: if true;
-      allow write: if autenticado();
+      allow write: if esAdmin();
     }
 
+    // ---------- Reservas (HU-03, HU-04, HU-05) ----------
     match /reservas/{id} {
-      allow read, write: if autenticado();
+      // Cada estudiante ve sus reservas; las aprobadas son visibles para validar cruces de horario.
+      allow read: if esAdmin()
+        || (autenticado() && (resource.data.estudianteId == request.auth.uid || resource.data.estado == 'Aprobada'));
+
+      allow create: if autenticado()
+        && request.resource.data.estudianteId == request.auth.uid
+        && request.resource.data.estado == 'Pendiente'
+        && request.resource.data.fin > request.resource.data.inicio
+        && perfil().estado == 'Activo';
+
+      // Aprobar, rechazar y registrar devoluciones es exclusivo del encargado.
+      allow update, delete: if esAdmin();
     }
 
+    // ---------- Intentos de inicio de sesión (HU-01) ----------
+    // Se escriben antes de autenticarse, por eso solo se permiten transiciones válidas:
+    // sumar un fallo, o pasar a bloqueado en el tercer fallo. No se puede reiniciar el contador.
     match /intentosLogin/{clave} {
-      allow read, write: if true;
+      allow read: if true;
+
+      allow create: if request.resource.data.keys().hasOnly(['fallos', 'bloqueadoHasta', 'actualizado'])
+        && request.resource.data.fallos == 1
+        && request.resource.data.bloqueadoHasta == null;
+
+      allow update: if request.resource.data.keys().hasOnly(['fallos', 'bloqueadoHasta', 'actualizado'])
+        && (resource.data.bloqueadoHasta == null || resource.data.bloqueadoHasta < request.time.toMillis())
+        && (
+          (request.resource.data.fallos == resource.data.fallos + 1
+            && request.resource.data.fallos < 3
+            && request.resource.data.bloqueadoHasta == null)
+          || (resource.data.fallos == 2
+            && request.resource.data.fallos == 0
+            && request.resource.data.bloqueadoHasta > request.time.toMillis())
+        );
+
+      // Solo el propio usuario (tras un ingreso correcto) o el encargado reinician el contador.
+      allow delete: if esAdmin() || (autenticado() && claveDelUsuario() == clave);
     }
   }
 }
